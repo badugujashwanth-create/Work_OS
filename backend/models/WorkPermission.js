@@ -83,7 +83,7 @@ workPermissionSchema.statics.getAcceptanceRateForEmployee = async function(emplo
   const result = await this.aggregate([
     {
       $match: {
-        employee: mongoose.Types.ObjectId(employeeId),
+        employee: new mongoose.Types.ObjectId(employeeId),
         respondedAt: { $exists: true }
       }
     },
