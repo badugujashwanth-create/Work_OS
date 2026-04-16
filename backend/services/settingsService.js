@@ -10,7 +10,10 @@ const DEFAULTS = {
   activeOutsideWorkHours: false,
   browserEnabled: false,
   browserHomeUrl: 'https://www.example.com',
-  browserAllowedUrls: []
+  browserAllowedUrls: [],
+  appWhitelist: ['Code', 'Chrome', 'Teams', 'WorkOS'],
+  domainWhitelist: [],
+  chatRetentionDays: 180
 };
 
 export const getSettings = async () => {

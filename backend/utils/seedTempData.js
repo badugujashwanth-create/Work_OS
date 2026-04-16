@@ -185,7 +185,10 @@ export const seedTempData = async () => {
         password: await bcrypt.hash(user.password, 10),
         lastActiveAt: new Date(),
         activityStatus: 'active',
-        idleSince: null
+        idleSince: null,
+        isActive: true,
+        isDeactivated: false,
+        status: 'active'
       };
     })
   );

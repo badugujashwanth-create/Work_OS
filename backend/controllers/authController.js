@@ -17,6 +17,7 @@ const buildContext = (req) => ({
 });
 
 const ALLOW_BOOTSTRAP_ADMIN = process.env.ALLOW_BOOTSTRAP_ADMIN === 'true';
+const ALLOW_PUBLIC_REGISTRATION = process.env.ALLOW_PUBLIC_REGISTRATION === 'true';
 const normalizeRole = (role) => (role || '').toString().trim().toLowerCase();
 
 const respondWithSession = (res, user, tokens, status = 200) =>
@@ -61,6 +62,9 @@ const completeLogin = async (req, res, user, auditMetadata = {}) => {
 };
 
 export const register = async (req, res) => {
+  if (!ALLOW_PUBLIC_REGISTRATION) {
+    return res.status(403).json({ message: 'Registration disabled' });
+  }
   const { name, email, password, role } = req.body;
   if (!name || !email || !password)
     return res.status(400).json({ message: 'Missing fields' });
@@ -102,7 +106,8 @@ export const login = async (req, res) => {
   const { email, password } = req.body;
   const user = await User.findOne({ email });
   if (!user) return res.status(400).json({ message: 'Invalid credentials' });
-  if (user.isDeactivated) return res.status(403).json({ message: 'Account disabled' });
+  if (user.isDeactivated || user.isActive === false)
+    return res.status(403).json({ message: 'Account disabled' });
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) return res.status(400).json({ message: 'Invalid credentials' });
@@ -120,6 +125,10 @@ export const refreshSession = async (req, res) => {
   if (!user) {
     await revokeRefreshToken(tokenValue);
     return res.status(401).json({ message: 'Invalid refresh token' });
+  }
+  if (user.isDeactivated || user.isActive === false) {
+    await revokeRefreshToken(tokenValue);
+    return res.status(403).json({ message: 'Account disabled' });
   }
   await attachRoleMetadata(user);
 

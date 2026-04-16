@@ -1,0 +1,21 @@
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+# Environment Variables Configuration
+# ====================================
+# Set the following environment variables in Netlify Dashboard (Site Settings > Build & Deploy > Environment)
+# 
+# NEXT_PUBLIC_API_URL=https://zettalogix-workos.onrender.com/api
+# NEXT_PUBLIC_WS_URL=https://zettalogix-workos.onrender.com
+# NEXT_PUBLIC_INTERNAL_BROWSER_URL=https://www.google.com/
+# NEXT_PUBLIC_COMPANY_MAIL_URL=https://mail.google.com/mail
+#
+# IMPORTANT: 
+# - The NEXT_PUBLIC_* variables are exposed to the browser, so they are visible in the final build
+# - Do NOT use localhost URLs in production builds
+# - Update the API_URL and WS_URL to match your backend deployment URL

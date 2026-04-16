@@ -35,43 +35,77 @@ export default function AdminDashboard() {
   const [smartAlerts, setSmartAlerts] = useState<IActivityAlert[]>([]);
   const [dailyReport, setDailyReport] = useState<IDailyActivityReport | null>(null);
   const [settings, setSettings] = useState<ISystemSettings | null>(null);
+  const [accessDenied, setAccessDenied] = useState(false);
 
   usePresenceSync();
 
+  const canViewAnalytics = Boolean(user && ['admin', 'manager'].includes(user.role));
+
+  useEffect(() => {
+    if (canViewAnalytics) setAccessDenied(false);
+  }, [canViewAnalytics, user?._id]);
+
   const loadStatuses = useCallback(async () => {
-    if (!user || !['admin', 'manager'].includes(user.role)) return;
+    if (!canViewAnalytics || accessDenied) return;
     setLoading(true);
     try {
       const data = await statusService.list();
       setSnapshot(data);
     } catch (error) {
+      if ((error as { response?: { status?: number } })?.response?.status === 403) {
+        setAccessDenied(true);
+        setSnapshot(null);
+        return;
+      }
       console.error('Failed to load employee statuses', error);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [accessDenied, canViewAnalytics]);
 
   useEffect(() => {
-    if (!ready || !user) return;
+    if (!ready || !user || !canViewAnalytics || accessDenied) return;
     loadStatuses();
     const interval = setInterval(loadStatuses, 15000);
     return () => clearInterval(interval);
-  }, [ready, user, loadStatuses]);
+  }, [ready, user, canViewAnalytics, accessDenied, loadStatuses]);
 
   useEffect(() => {
+    if (!ready || !user || !canViewAnalytics || accessDenied) return;
     alertService
       .list()
       .then(setSmartAlerts)
-      .catch(() => setSmartAlerts([]));
+      .catch((error) => {
+        if ((error as { response?: { status?: number } })?.response?.status === 403) {
+          setAccessDenied(true);
+          setSmartAlerts([]);
+          return;
+        }
+        setSmartAlerts([]);
+      });
     reportService
       .daily()
       .then(setDailyReport)
-      .catch(() => setDailyReport(null));
+      .catch((error) => {
+        if ((error as { response?: { status?: number } })?.response?.status === 403) {
+          setAccessDenied(true);
+          setDailyReport(null);
+          return;
+        }
+        setDailyReport(null);
+      });
     settingsService
       .getActivitySettings()
       .then(setSettings)
-      .catch(() => setSettings(null));
-  }, []);
+      .catch((error) => {
+        if ((error as { response?: { status?: number } })?.response?.status === 403) {
+          setAccessDenied(true);
+          setSettings(null);
+          return;
+        }
+        setSettings(null);
+      });
+  }, [ready, user, canViewAnalytics, accessDenied]);
 
   const filteredUsers = useMemo(() => {
     if (!snapshot) return [];
@@ -86,7 +120,7 @@ export default function AdminDashboard() {
   );
 
   const summaryCards = useMemo(() => {
-    const totals = snapshot?.summary ?? { active: 0, idle: 0, offline: 0 };
+    const totals = snapshot?.summary ?? { active: 0, idle: 0, offline: 0, onLeave: 0, absent: 0 };
     return [
       { label: 'Working now', value: totals.active, status: 'active' as ActivityStatus },
       { label: 'Active idle', value: totals.idle, status: 'idle' as ActivityStatus },
@@ -94,8 +128,21 @@ export default function AdminDashboard() {
     ];
   }, [snapshot]);
 
+  const leaveSummary = useMemo(
+    () => ({
+      onLeave: snapshot?.summary?.onLeave ?? 0,
+      absent: snapshot?.summary?.absent ?? 0
+    }),
+    [snapshot]
+  );
+
   return (
     <div className="space-y-6">
+      {accessDenied && (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50/80 p-4 text-sm text-amber-800">
+          Access denied. Sign in as an admin or manager to view live status, alerts, and reports.
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-3">
         {summaryCards.map((card) => (
           <div key={card.status} className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
@@ -111,6 +158,18 @@ export default function AdminDashboard() {
             )}
           </div>
         ))}
+      </div>
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">On leave</p>
+          <p className="mt-4 text-4xl font-semibold text-slate-900">{leaveSummary.onLeave}</p>
+          <p className="mt-2 text-xs text-slate-500">Approved full-day leave today</p>
+        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+          <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Absent</p>
+          <p className="mt-4 text-4xl font-semibold text-slate-900">{leaveSummary.absent}</p>
+          <p className="mt-2 text-xs text-slate-500">No leave and no work recorded</p>
+        </div>
       </div>
       <div className="grid gap-6 lg:grid-cols-[1fr,1fr,1fr]">
         <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">

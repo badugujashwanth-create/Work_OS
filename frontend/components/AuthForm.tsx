@@ -29,7 +29,7 @@ export default function AuthForm({ mode }: Props) {
   const [error, setError] = useState('');
 
   const redirectAfterAuth = (user: IUser) =>
-    user.role === 'admin' ? '/admin/dashboard' : '/dashboard';
+    user.role === 'admin' || user.role === 'manager' ? '/admin/dashboard' : '/dashboard';
 
   const fillDemo = (type: 'admin' | 'employee') => {
     setForm((prev) => ({
@@ -226,16 +226,7 @@ export default function AuthForm({ mode }: Props) {
               </button>
               <p className="text-center text-sm text-slate-500">
                 {mode === 'login' ? (
-                  <>
-                    Need an account?{' '}
-                    <button
-                      type="button"
-                      className="font-semibold text-brand-600 underline decoration-2 underline-offset-4 transition hover:text-brand-500"
-                      onClick={() => router.push('/register')}
-                    >
-                      Register
-                    </button>
-                  </>
+                  <>Need an account? Contact your admin for access.</>
                 ) : (
                   <>
                     Already registered?{' '}

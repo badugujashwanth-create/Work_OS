@@ -36,6 +36,10 @@ const userSchema = new mongoose.Schema(
     idleSince: Date,
     status: { type: String, enum: ['active', 'inactive'], default: 'active' },
     isDeactivated: { type: Boolean, default: false },
+    isActive: { type: Boolean, default: true },
+    deactivatedAt: Date,
+    mustResetPassword: { type: Boolean, default: false },
+    tempPasswordIssuedAt: Date,
     permissions: [String],
     attendancePreferences: {
       shiftStart: { type: String, default: '09:00' },

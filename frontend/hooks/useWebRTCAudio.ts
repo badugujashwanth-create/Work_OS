@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useSocketStore } from '@/store/useSocketStore';
-import { CallSessionState } from './useCallSignaling';
+import { CallSessionState, CallType } from './useCallSignaling';
 
 const STUN_SERVERS = [{ urls: 'stun:stun.l.google.com:19302' }];
 const TURN_URL = process.env.NEXT_PUBLIC_TURN_URL;
@@ -35,7 +35,7 @@ export const useWebRTCAudio = (call: CallSessionState | null, userId?: string) =
   const [cameraOff, setCameraOff] = useState(false);
   const [hasVideo, setHasVideo] = useState(false);
 
-  const cleanup = () => {
+  const cleanup = useCallback(() => {
     pcRef.current?.close();
     pcRef.current = null;
     localStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -46,19 +46,138 @@ export const useWebRTCAudio = (call: CallSessionState | null, userId?: string) =
     setMuted(false);
     setCameraOff(false);
     setHasVideo(false);
-  };
+  }, []);
 
-  useEffect(() => cleanup, []);
+  useEffect(() => cleanup, [cleanup]);
 
   useEffect(() => {
-    if (!call) {
+    if (!call) return undefined;
+    return () => {
       cleanup();
-      return;
+    };
+  }, [call, cleanup]);
+
+  const attachStreams = useCallback(() => {
+    if (localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
     }
-    if (call.status === 'accepted') {
-      setState('connecting');
+    if (remoteStreamRef.current) {
+      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStreamRef.current;
+      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStreamRef.current;
     }
-  }, [call]);
+  }, []);
+
+  const getOrCreateLocalStream = useCallback(
+    async (preferredType?: CallType) => {
+      if (localStreamRef.current) {
+        if (
+          preferredType === 'video' &&
+          localStreamRef.current.getVideoTracks().length === 0
+        ) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+          localStreamRef.current = null;
+        } else {
+          return localStreamRef.current;
+        }
+      }
+
+      const wantsVideo = (preferredType ?? call?.type) === 'video';
+
+      try {
+        localStreamRef.current = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: wantsVideo
+        });
+        setHasVideo(wantsVideo);
+      } catch (videoErr) {
+        if (wantsVideo) {
+          setError('Camera unavailable; continuing with audio only');
+        }
+        try {
+          localStreamRef.current = await navigator.mediaDevices.getUserMedia({
+            audio: true,
+            video: false
+          });
+          setHasVideo(false);
+        } catch (audioErr) {
+          setError('Microphone permission denied or unavailable');
+          setState('error');
+          throw audioErr;
+        }
+      }
+
+      return localStreamRef.current;
+    },
+    [call?.type]
+  );
+
+  const prepareMedia = useCallback(
+    async (preferredType?: CallType) => {
+      try {
+        const stream = await getOrCreateLocalStream(preferredType);
+        attachStreams();
+        return Boolean(stream);
+      } catch (err) {
+        return false;
+      }
+    },
+    [attachStreams, getOrCreateLocalStream]
+  );
+
+  const ensurePeerConnection = useCallback(
+    async (isCaller: boolean) => {
+      if (pcRef.current) return pcRef.current;
+      const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+      pcRef.current = pc;
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && call && socket) {
+          socket.emit('webrtc:ice', { callId: call.callId, candidate: event.candidate });
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'connected') {
+          setState('in_call');
+        } else if (pc.connectionState === 'failed') {
+          setState('error');
+        }
+      };
+
+      pc.ontrack = (event) => {
+        if (!remoteStreamRef.current) {
+          remoteStreamRef.current = new MediaStream();
+        }
+        remoteStreamRef.current.addTrack(event.track);
+        attachStreams();
+      };
+
+      let stream: MediaStream | null = null;
+      try {
+        stream = await getOrCreateLocalStream();
+      } catch (err) {
+        setState('error');
+        return pc;
+      }
+
+      if (!stream) {
+        setState('error');
+        return pc;
+      }
+
+      stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+      attachStreams();
+
+      if (isCaller && call && socket) {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        socket.emit('webrtc:offer', { callId: call.callId, sdp: pc.localDescription });
+      }
+
+      return pc;
+    },
+    [attachStreams, call, getOrCreateLocalStream, socket]
+  );
 
   useEffect(() => {
     if (!socket) return;
@@ -103,91 +222,18 @@ export const useWebRTCAudio = (call: CallSessionState | null, userId?: string) =
       socket.off('webrtc:answer', handleAnswer);
       socket.off('webrtc:ice', handleIce);
     };
-  }, [socket, call]);
+  }, [socket, call, ensurePeerConnection]);
 
-  const attachStreams = () => {
-    if (localVideoRef.current && localStreamRef.current) {
-      localVideoRef.current.srcObject = localStreamRef.current;
-    }
-    if (remoteStreamRef.current) {
-      if (remoteVideoRef.current) remoteVideoRef.current.srcObject = remoteStreamRef.current;
-      if (remoteAudioRef.current) remoteAudioRef.current.srcObject = remoteStreamRef.current;
-    }
-  };
-
-  const ensurePeerConnection = async (isCaller: boolean) => {
-    if (pcRef.current) return pcRef.current;
-    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
-    pcRef.current = pc;
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && call && socket) {
-        socket.emit('webrtc:ice', { callId: call.callId, candidate: event.candidate });
-      }
-    };
-
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === 'connected') {
-        setState('in_call');
-      } else if (pc.connectionState === 'failed') {
-        setState('error');
-      }
-    };
-
-    pc.ontrack = (event) => {
-      if (!remoteStreamRef.current) {
-        remoteStreamRef.current = new MediaStream();
-      }
-      remoteStreamRef.current.addTrack(event.track);
-      attachStreams();
-    };
-
-    try {
-      if (!localStreamRef.current) {
-        const wantsVideo = call?.type === 'video';
-        try {
-          localStreamRef.current = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: wantsVideo
-          });
-          setHasVideo(wantsVideo);
-        } catch (videoErr) {
-          if (wantsVideo) {
-            setError('Camera unavailable; continuing with audio only');
-          }
-          localStreamRef.current = await navigator.mediaDevices.getUserMedia({
-            audio: true,
-            video: false
-          });
-          setHasVideo(false);
-        }
-      }
-    } catch (err) {
-      setError('Microphone permission denied or unavailable');
-      setState('error');
-      return pc;
-    }
-
-    localStreamRef.current.getTracks().forEach((track) => pc.addTrack(track, localStreamRef.current!));
-    attachStreams();
-
-    if (isCaller && call && socket) {
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      socket.emit('webrtc:offer', { callId: call.callId, sdp: pc.localDescription });
-    }
-
-    return pc;
-  };
 
   useEffect(() => {
     const start = async () => {
       if (!call || call.status !== 'accepted' || !socket || !userId) return;
+      setState('connecting');
       const isCaller = call.from === userId;
       await ensurePeerConnection(isCaller);
     };
     start();
-  }, [call, socket, userId]);
+  }, [call, socket, userId, ensurePeerConnection]);
 
   const toggleMute = () => {
     const stream = localStreamRef.current;
@@ -222,6 +268,7 @@ export const useWebRTCAudio = (call: CallSessionState | null, userId?: string) =
     hasVideo,
     toggleMute,
     toggleCamera,
+    prepareMedia,
     cleanup
   };
 };

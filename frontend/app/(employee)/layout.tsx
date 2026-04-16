@@ -1,4 +1,4 @@
-﻿'use client';
+'use client';
 
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
@@ -9,6 +9,8 @@ import { usePresenceHeartbeat } from '@/hooks/usePresenceHeartbeat';
 import { useWorkTimer } from '@/hooks/useWorkTimer';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useWorkStore } from '@/store/useWorkStore';
+
+const EMPLOYEE_ROLES = new Set(['employee', 'manager', 'hr', 'auditor']);
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -30,15 +32,15 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
       router.replace('/login');
       return;
     }
-    if (user.role !== 'employee') {
+    if (!EMPLOYEE_ROLES.has(user.role)) {
       router.replace(user.role === 'admin' ? '/admin/dashboard' : '/login');
       return;
     }
     refresh();
   }, [user, ready, router, refresh]);
 
-  if (!ready || !user || user.role !== 'employee')
-    return <div className="flex min-h-screen items-center justify-center">Loading…</div>;
+  if (!ready || !user || !EMPLOYEE_ROLES.has(user.role))
+    return <div className="flex min-h-screen items-center justify-center">Loading...</div>;
 
   return (
     <div className="flex min-h-screen bg-slate-50">
@@ -50,3 +52,6 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
     </div>
   );
 }
+
+
+

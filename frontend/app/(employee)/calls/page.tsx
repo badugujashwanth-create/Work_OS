@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { callService } from '@/services/callService';
-import { CallLogStatus, ICallLog } from '@/types';
+import { userService } from '@/services/userService';
+import { CallLogStatus, ICallLog, IUser } from '@/types';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useCallSignaling } from '@/hooks/useCallSignaling';
 import { useWebRTCAudio } from '@/hooks/useWebRTCAudio';
@@ -31,6 +32,9 @@ export default function EmployeeCallsPage() {
   const { user } = useAuthStore();
   const [logs, setLogs] = useState<ICallLog[]>([]);
   const [loading, setLoading] = useState(false);
+  const [roster, setRoster] = useState<IUser[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [newCallTarget, setNewCallTarget] = useState('');
   const { call, startCall, acceptCall, rejectCall, endCall, cancelCall } = useCallSignaling();
   const {
     remoteAudioRef,
@@ -42,7 +46,8 @@ export default function EmployeeCallsPage() {
     cameraOff,
     hasVideo,
     toggleMute,
-    toggleCamera
+    toggleCamera,
+    prepareMedia
   } = useWebRTCAudio(call, user?._id);
 
   useEffect(() => {
@@ -58,6 +63,23 @@ export default function EmployeeCallsPage() {
     loadLogs();
   }, []);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadRoster = async () => {
+      setRosterLoading(true);
+      try {
+        const data = await userService.getRoster();
+        if (!cancelled) setRoster(data);
+      } finally {
+        if (!cancelled) setRosterLoading(false);
+      }
+    };
+    loadRoster();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const withCounterpart = useMemo(
     () =>
       logs.map((log) => {
@@ -68,12 +90,88 @@ export default function EmployeeCallsPage() {
     [logs, user?._id]
   );
 
+  const rosterOptions = useMemo(
+    () => roster.filter((person) => person._id !== user?._id),
+    [roster, user?._id]
+  );
+
+  const isIncoming = call?.status === 'ringing' && call?.to === user?._id;
+  const isOutgoing = call?.status === 'outgoing' && call?.from === user?._id;
+  const endHandler = call?.status === 'accepted' ? endCall : isOutgoing ? cancelCall : undefined;
+
+  const handleNewCall = (type: 'audio' | 'video') => {
+    const target = rosterOptions.find((person) => person._id === newCallTarget);
+    if (!target?._id) return;
+    prepareMedia(type).then((ok) => {
+      if (ok) startCall(target._id, type, target.name || target.email);
+    });
+  };
+
+  const handleAccept = async () => {
+    if (!call) return;
+    const ok = await prepareMedia(call.type);
+    if (ok) acceptCall();
+  };
+
+  const handleRedial = (target?: { _id?: string; name?: string; email?: string }, type?: 'audio' | 'video') => {
+    if (!target?._id || !type) return;
+    prepareMedia(type).then((ok) => {
+      if (ok) startCall(target._id!, type, target.name || target.email);
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">Calls</p>
         <h1 className="text-2xl font-semibold text-slate-900">Call history</h1>
         <p className="text-sm text-slate-600">Review recent audio/video calls and redial teammates.</p>
+      </div>
+
+      <div className="rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">New call</p>
+          <h2 className="text-lg font-semibold text-slate-900">Start a fresh call</h2>
+          <p className="text-sm text-slate-600">Pick a teammate to start an audio or video call.</p>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <select
+            className="min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 outline-none transition hover:border-brand-400"
+            value={newCallTarget}
+            onChange={(e) => setNewCallTarget(e.target.value)}
+          >
+            <option value="">Choose teammate...</option>
+            {rosterOptions.map((person) => (
+              <option key={person._id} value={person._id}>
+                {person.name} ({person.email})
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700 disabled:opacity-60"
+            onClick={() => handleNewCall('audio')}
+            disabled={!newCallTarget}
+          >
+            <Phone className="h-4 w-4" />
+            Start audio
+          </button>
+          <button
+            type="button"
+            className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand-300 hover:text-brand-700 disabled:opacity-60"
+            onClick={() => handleNewCall('video')}
+            disabled={!newCallTarget}
+          >
+            <Video className="h-4 w-4" />
+            Start video
+          </button>
+        </div>
+        {rosterLoading && (
+          <p className="mt-3 text-xs text-slate-500">Loading teammates...</p>
+        )}
+        {!rosterLoading && rosterOptions.length === 0 && (
+          <p className="mt-3 text-xs text-slate-500">No teammates available for calls.</p>
+        )}
       </div>
 
       <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white/90 shadow-sm">
@@ -128,7 +226,7 @@ export default function EmployeeCallsPage() {
                     <button
                       type="button"
                       className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:border-brand-300"
-                      onClick={() => other?._id && startCall(other._id, 'audio', other.name || other.email)}
+                      onClick={() => handleRedial(other, 'audio')}
                     >
                       <Phone className="h-4 w-4" />
                       Audio
@@ -136,7 +234,7 @@ export default function EmployeeCallsPage() {
                     <button
                       type="button"
                       className="flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:border-brand-300"
-                      onClick={() => other?._id && startCall(other._id, 'video', other.name || other.email)}
+                      onClick={() => handleRedial(other, 'video')}
                     >
                       <Video className="h-4 w-4" />
                       Video
@@ -170,15 +268,11 @@ export default function EmployeeCallsPage() {
         }
         type={call?.type || 'audio'}
         status={call?.status}
-        onAccept={call && call.to === user?._id && call.status === 'ringing' ? acceptCall : undefined}
+        onAccept={isIncoming ? handleAccept : undefined}
         onReject={
-          call && call.status === 'ringing'
-            ? call.to === user?._id
-              ? rejectCall
-              : cancelCall
-            : undefined
+          isIncoming ? rejectCall : isOutgoing ? cancelCall : undefined
         }
-        onEnd={call && call.status === 'accepted' ? endCall : undefined}
+        onEnd={endHandler}
         remoteAudioRef={remoteAudioRef}
         remoteVideoRef={remoteVideoRef}
         localVideoRef={localVideoRef}

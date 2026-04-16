@@ -145,6 +145,18 @@ export default function AdminSettingsPage() {
             <option value="disabled">Ignore</option>
           </select>
         </div>
+        <div className="space-y-2">
+          <label className="text-xs uppercase tracking-[0.3em] text-slate-500">Chat retention (days)</label>
+          <select
+            value={form.chatRetentionDays ?? 180}
+            onChange={(e) => setForm({ ...form, chatRetentionDays: Number(e.target.value) })}
+            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900"
+          >
+            <option value={90}>90 days</option>
+            <option value={180}>180 days</option>
+            <option value={365}>365 days</option>
+          </select>
+        </div>
       </div>
       <button
         type="button"

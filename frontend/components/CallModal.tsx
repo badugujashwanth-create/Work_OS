@@ -45,6 +45,8 @@ export function CallModal({
   if (!open) return null;
 
   const title = type === 'video' ? 'Video Call' : 'Audio Call';
+  const rejectLabel = status === 'outgoing' ? 'Cancel' : 'Reject';
+  const endLabel = status === 'outgoing' ? 'Cancel' : 'End';
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 px-4">
@@ -105,7 +107,7 @@ export function CallModal({
               className="flex items-center gap-2 rounded-2xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-rose-700"
             >
               <PhoneOff className="h-4 w-4" />
-              Reject
+              {rejectLabel}
             </button>
           )}
         </div>
@@ -140,7 +142,7 @@ export function CallModal({
               className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700 shadow-sm disabled:opacity-60"
             >
               <VideoOff className="h-4 w-4" />
-              End
+              {endLabel}
             </button>
           </div>
           <p className="mt-2 text-xs text-slate-500">

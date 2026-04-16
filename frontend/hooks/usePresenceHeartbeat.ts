@@ -6,7 +6,7 @@ import { useAuthStore } from '@/store/useAuthStore';
 
 export const usePresenceHeartbeat = () => {
   const { user, ready } = useAuthStore();
-  const lastActiveRef = useRef<number>(Date.now());
+  const lastActiveRef = useRef<number>(0);
 
   useEffect(() => {
     if (!ready || !user) return undefined;

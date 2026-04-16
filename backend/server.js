@@ -33,6 +33,11 @@ import presenceRoutes from './routes/presenceRoutes.js';
 import documentRoutes from './routes/documentRoutes.js';
 import announcementRoutes from './routes/announcementRoutes.js';
 import collabRoutes from './routes/collabRoutes.js';
+import timesheetRoutes from './routes/timesheetRoutes.js';
+import usageRoutes from './routes/usageRoutes.js';
+import teamRoutes from './routes/teamRoutes.js';
+import teamChatRoutes from './routes/teamChatRoutes.js';
+import leaveRoutes from './routes/leaveRoutes.js';
 import { initSocket } from './socket.js';
 
 dotenv.config();
@@ -95,6 +100,11 @@ app.use('/api/presence', presenceRoutes);
 app.use('/api/documents', documentRoutes);
 app.use('/api/announcements', announcementRoutes);
 app.use('/api/collab', collabRoutes);
+app.use('/api/timesheet', timesheetRoutes);
+app.use('/api/usage', usageRoutes);
+app.use('/api/teams', teamRoutes);
+app.use('/api/chat', teamChatRoutes);
+app.use('/api/leave', leaveRoutes);
 
 app.get('/', (req, res) => {
   res.json({ status: 'ok', service: 'workhub-backend' });

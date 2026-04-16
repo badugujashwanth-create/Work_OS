@@ -99,8 +99,17 @@ export const setEmployeeStatus = async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ message: 'User not found' });
 
-  user.status = req.body.status || user.status;
-  user.isDeactivated = Boolean(req.body.isDeactivated);
+  const deactivated = Boolean(req.body.isDeactivated);
+  user.isDeactivated = deactivated;
+  user.isActive = !deactivated;
+  user.deactivatedAt = deactivated ? new Date() : null;
+  if (deactivated) {
+    user.status = 'inactive';
+  } else if (req.body.status) {
+    user.status = req.body.status;
+  } else {
+    user.status = 'active';
+  }
   await user.save();
 
   await recordAuditLog({

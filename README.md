@@ -23,7 +23,7 @@ Set the following environment variables (see `/backend/.env.example` and `/front
 - `ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_DAYS`
 - `OPENAI_API_KEY` (optional for AI summaries)
 
-Frontend reads `NEXT_PUBLIC_API_URL` from `.env.local` to reach the API; it defaults to `http://localhost:5000/api` if you leave it unset.
+Frontend reads `NEXT_PUBLIC_API_URL` from `.env.local` to reach the API; it defaults to `https://zettalogix-workos.onrender.com/api` if you leave it unset.
 
 Auth notes:
 - For a fresh database, set `ALLOW_BOOTSTRAP_ADMIN=true` to allow the first registration to be an admin, then disable it.
@@ -42,7 +42,7 @@ NEXT_PUBLIC_TURN_PASS=your-turn-password
 
 1. Start the API: `cd backend && npm install && npm run dev` (uses `PORT` from `.env`, defaults to `5000`).
 2. Start the frontend: `cd frontend && npm install && npm run dev` (use `npm run dev`, not `npm start`).
-3. (Optional) Set `NEXT_PUBLIC_API_URL` in `frontend/.env.local` to point at your API; leave it empty to use `http://localhost:5000/api`.
+3. (Optional) Set `NEXT_PUBLIC_API_URL` in `frontend/.env.local` to point at your API; leave it empty to use `https://zettalogix-workos.onrender.com/api`.
 
 ## Client Guide
 

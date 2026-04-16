@@ -21,6 +21,8 @@ export interface IEmployeeStatusSnapshot {
     active: number;
     idle: number;
     offline: number;
+    onLeave: number;
+    absent: number;
   };
   users: IEmployeeStatusRecord[];
 }
@@ -33,6 +35,9 @@ export interface ISystemSettings {
   alertsEnabled: boolean;
   alertRoles: Role[];
   activeOutsideWorkHours: boolean;
+  appWhitelist?: string[];
+  domainWhitelist?: string[];
+  chatRetentionDays?: number;
 }
 
 export interface IBrowserSettings {
@@ -112,7 +117,11 @@ export interface IUser {
   department?: string;
   title?: string;
   status?: 'active' | 'inactive';
+  isActive?: boolean;
+  isDeactivated?: boolean;
+  deactivatedAt?: string;
   lastActiveAt?: string;
+  createdAt?: string;
   employmentType?: 'full_time' | 'part_time' | 'contract';
   workHoursPerWeek?: number;
   attendancePreferences?: {
@@ -121,6 +130,119 @@ export interface IUser {
     timezone?: string;
   };
   manager?: Pick<IUser, '_id' | 'name' | 'email'> | string;
+}
+
+export interface IAdminUserResponse {
+  user: IUser;
+  tempPassword?: string;
+}
+
+export type LeaveDecisionStatus = 'pending' | 'approved' | 'rejected';
+export type LeaveRequestStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+export type LeaveDurationType = 'full_day' | 'half_day' | 'hours';
+
+export interface ILeaveType {
+  _id: string;
+  name: string;
+  paid: boolean;
+  isActive?: boolean;
+  defaultAnnualDays?: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ILeaveBalance {
+  _id: string;
+  userId: string | IUser;
+  leaveTypeId: string | ILeaveType;
+  year: number;
+  totalDays: number;
+  usedDays: number;
+  remainingDays: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface ILeaveRequest {
+  _id: string;
+  userId: string | IUser;
+  leaveTypeId: string | ILeaveType;
+  startAt: string;
+  endAt: string;
+  durationType: LeaveDurationType;
+  hoursRequested?: number;
+  reason?: string;
+  attachmentUrl?: string;
+  status: LeaveRequestStatus;
+  managerDecision: LeaveDecisionStatus;
+  adminDecision: LeaveDecisionStatus;
+  managerId?: string | IUser;
+  adminId?: string | IUser;
+  managerComment?: string;
+  adminComment?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type InviteStatus = 'active' | 'used' | 'expired';
+
+export interface IInvite {
+  _id: string;
+  email: string;
+  role: Role;
+  status: InviteStatus;
+  expiresAt: string;
+  createdAt: string;
+  usedAt?: string;
+  createdBy?: { _id: string; name?: string; email?: string } | string;
+  usedBy?: { _id: string; name?: string; email?: string } | string;
+}
+
+export type TeamMemberRole = 'owner' | 'manager' | 'member';
+
+export interface ITeam {
+  _id: string;
+  name: string;
+  isArchived?: boolean;
+  createdAt?: string;
+  createdBy?: IUser;
+}
+
+export interface ITeamMember {
+  _id: string;
+  teamId?: string;
+  userId?: string;
+  role: TeamMemberRole;
+  user?: IUser;
+}
+
+export interface IChannel {
+  _id: string;
+  teamId: string;
+  name: string;
+  type: 'general' | 'announcements' | 'project';
+  isArchived?: boolean;
+  createdAt?: string;
+}
+
+export interface ITeamMembership {
+  team: ITeam;
+  role: TeamMemberRole;
+}
+
+export interface IAdminTeam extends ITeam {
+  members: ITeamMember[];
+  channels: IChannel[];
+}
+
+export interface ITeamMessage {
+  _id: string;
+  teamId: string;
+  channelId: string;
+  senderId: string;
+  sender?: IUser;
+  text: string;
+  createdAt: string;
 }
 
 export interface IWorkSession {
@@ -226,6 +348,59 @@ export interface IAttendanceRecord {
   totalBreakMinutes?: number;
   breaks?: { start: string; end?: string }[];
   summary?: string;
+}
+
+export interface ITimeSheetDay {
+  _id: string;
+  user?: IUser;
+  date: string;
+  clockInAt?: string;
+  clockOutAt?: string;
+  breakMinutes?: number;
+  payableMinutes?: number;
+  activeMinutes?: number;
+  idleMinutes?: number;
+  note?: string;
+  approvalStatus?: 'pending' | 'approved' | 'rejected';
+  approvalNote?: string;
+  approvedBy?: IUser | string;
+  approvedAt?: string;
+}
+
+export interface IUsageSummaryApp {
+  app: string;
+  minutes: number;
+  activeMinutes: number;
+  idleMinutes: number;
+  nonWorkMinutes: number;
+  isWhitelisted: boolean;
+}
+
+export interface IUsageSummaryModule {
+  module: string;
+  minutes: number;
+}
+
+export interface IUsageSummaryExternalApp {
+  app: string;
+  minutes: number;
+}
+
+export interface IUsageSummary {
+  date: string;
+  userId: string;
+  appWhitelist: string[];
+  totals: {
+    minutes: number;
+    activeMinutes: number;
+    idleMinutes: number;
+    nonWorkMinutes: number;
+  };
+  apps: IUsageSummaryApp[];
+  totalsByExternalApp?: IUsageSummaryExternalApp[];
+  totalsByWorkosModule?: IUsageSummaryModule[];
+  idleMinutes?: number;
+  activeMinutes?: number;
 }
 
 export interface IAdminDashboardSnapshot {
@@ -396,4 +571,71 @@ export interface IChatMessage {
   body: string;
   createdAt: string;
   updatedAt: string;
+}
+
+export type RiskAlertStatus = 'open' | 'snoozed' | 'resolved';
+export type RiskAlertSeverity = 'info' | 'warning' | 'critical';
+export type RiskAlertType =
+  | 'no_clockin_2days'
+  | 'low_hours'
+  | 'too_much_idle'
+  | 'no_usage_ticks';
+
+export interface IRiskAlert {
+  _id: string;
+  userId: IUser | string;
+  type: RiskAlertType;
+  severity: RiskAlertSeverity;
+  status: RiskAlertStatus;
+  message: string;
+  note?: string;
+  metadata?: Record<string, unknown>;
+  snoozedUntil?: string;
+  resolvedAt?: string;
+  lastTriggeredAt?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export type RiskLevel = 'green' | 'yellow' | 'red';
+
+export interface IControlCenterEmployee {
+  user: IUser;
+  status: ActivityStatus;
+  workedMinutes: number;
+  breakMinutes: number;
+  leaveStatus: 'on_leave' | 'not_on_leave';
+  leaveType?: string;
+  platformTop: { app: string; minutes: number; idleMinutes: number; activeMinutes: number }[];
+  moduleTop: { module: string; minutes: number }[];
+  risk: RiskLevel;
+  riskAlerts: IRiskAlert[];
+  lastActivityAt?: string;
+  teams: { _id: string; name: string }[];
+}
+
+export interface IControlCenterSnapshot {
+  date: string;
+  teams: { _id: string; name: string }[];
+  employees: IControlCenterEmployee[];
+}
+
+export interface IControlCenterDetail {
+  user: IUser;
+  timesheetTrend: Array<{
+    date: string;
+    workedMinutes: number;
+    breakMinutes: number;
+    payableMinutes: number;
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
+    approvalNote?: string;
+  }>;
+  platformBreakdown: { app: string; minutes: number; idleMinutes: number; activeMinutes: number }[];
+  moduleBreakdown: { module: string; minutes: number }[];
+  leaveHistory: ILeaveRequest[];
+  timesheetApprovals: Array<{
+    date: string;
+    approvalStatus?: 'pending' | 'approved' | 'rejected';
+    approvalNote?: string;
+  }>;
 }

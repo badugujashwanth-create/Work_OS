@@ -1,7 +1,7 @@
 
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useWorkStore } from '@/store/useWorkStore';
 import { useAuthStore } from '@/store/useAuthStore';
 import { callService } from '@/services/callService';
@@ -60,6 +60,12 @@ export default function WorkModePanel() {
   const [callChatMessages, setCallChatMessages] = useState<ICallMessage[]>([]);
   const [callChatInput, setCallChatInput] = useState('');
 
+  const setActiveCallState = useCallback((call: ICallSession | null) => {
+    setActiveCall(call);
+    setCallChatMessages([]);
+    setCallTimer(0);
+  }, []);
+
   useEffect(() => {
     if (!ready) return;
     const loadCalls = async () => {
@@ -67,13 +73,13 @@ export default function WorkModePanel() {
         const data = await callService.list();
         setCalls(sortCalls(data));
         const live = data.find((call) => call.status === 'live');
-        setActiveCall(live || data[0] || null);
+        setActiveCallState(live || data[0] || null);
       } catch (error) {
         console.error('Failed to load call queue', error);
       }
     };
     loadCalls();
-  }, [ready]);
+  }, [ready, setActiveCallState]);
 
   useEffect(() => {
     if (!ready) return;
@@ -88,27 +94,24 @@ export default function WorkModePanel() {
   }, [ready]);
 
   useEffect(() => {
-    if (!activeCall) {
-      setCallChatMessages([]);
-      setCallTimer(0);
-      return;
-    }
+    if (!activeCall) return;
+    let cancelled = false;
     const fetchChat = async () => {
       try {
         const messages = await callService.chat(activeCall._id);
-        setCallChatMessages(messages);
+        if (!cancelled) setCallChatMessages(messages);
       } catch (error) {
         console.error('Failed to load call chat', error);
       }
     };
     fetchChat();
+    return () => {
+      cancelled = true;
+    };
   }, [activeCall]);
 
   useEffect(() => {
-    if (!callActive || !activeCall?.startTime) {
-      setCallTimer(0);
-      return;
-    }
+    if (!callActive || !activeCall?.startTime) return;
     const startTick = new Date(activeCall.startTime).getTime();
     const tick = () => {
       setCallTimer(Math.max(0, Math.floor((Date.now() - startTick) / 1000)));
@@ -172,7 +175,7 @@ export default function WorkModePanel() {
         attendees
       });
       setCalls((prev) => sortCalls([session, ...prev]));
-      setActiveCall((prev) => prev ?? session);
+      if (!activeCall) setActiveCallState(session);
       setMeetingForm({ title: '', time: '', attendees: '' });
     } catch (error) {
       console.error('Failed to schedule meeting', error);
@@ -210,7 +213,7 @@ export default function WorkModePanel() {
     try {
       const session = await callService.start(target._id);
       setCalls((prev) => sortCalls(prev.map((call) => (call._id === session._id ? session : call))));
-      setActiveCall(session);
+      setActiveCallState(session);
     } catch (error) {
       console.error('Failed to start call', error);
     }
@@ -220,13 +223,13 @@ export default function WorkModePanel() {
     if (!activeCall) return;
     try {
       const session = await callService.end(activeCall._id);
+      let nextCall: ICallSession | null = null;
       setCalls((prev) => {
         const updated = sortCalls(prev.map((call) => (call._id === session._id ? session : call)));
-        const next = updated.find((call) => call.status !== 'ended');
-        setActiveCall(next || session);
+        nextCall = updated.find((call) => call.status !== 'ended') || null;
         return updated;
       });
-      setCallTimer(0);
+      setActiveCallState(nextCall || session);
     } catch (error) {
       console.error('Failed to end call', error);
     }
@@ -465,7 +468,7 @@ export default function WorkModePanel() {
                     <button
                       key={meeting._id}
                       type="button"
-                      onClick={() => setActiveCall(meeting)}
+                      onClick={() => setActiveCallState(meeting)}
                       className={`w-full rounded-2xl border px-3 py-3 text-left text-sm shadow-sm transition ${
                         activeCall?._id === meeting._id
                           ? 'border-brand-200 bg-brand-50/70'

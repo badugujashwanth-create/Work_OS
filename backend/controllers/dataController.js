@@ -20,6 +20,14 @@ import Document from '../models/Document.js';
 import Announcement from '../models/Announcement.js';
 import CollabMessage from '../models/CollabMessage.js';
 import CollabFile from '../models/CollabFile.js';
+import Team from '../models/Team.js';
+import TeamMember from '../models/TeamMember.js';
+import Channel from '../models/Channel.js';
+import TeamMessage from '../models/TeamMessage.js';
+import LeaveType from '../models/LeaveType.js';
+import LeaveBalance from '../models/LeaveBalance.js';
+import LeaveRequest from '../models/LeaveRequest.js';
+import RiskAlert from '../models/RiskAlert.js';
 
 const MODELS = [
   User,
@@ -43,7 +51,15 @@ const MODELS = [
   Document,
   Announcement,
   CollabMessage,
-  CollabFile
+  CollabFile,
+  Team,
+  TeamMember,
+  Channel,
+  TeamMessage,
+  LeaveType,
+  LeaveBalance,
+  LeaveRequest,
+  RiskAlert
 ];
 
 const modelMap = new Map(

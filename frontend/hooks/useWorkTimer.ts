@@ -10,12 +10,13 @@ const TICK_INTERVAL_MS = 30_000;
 export const useWorkTimer = () => {
   const { user, ready } = useAuthStore();
   const startedRef = useRef(false);
-  const lastActivityRef = useRef<number>(Date.now());
+  const lastActivityRef = useRef<number>(0);
   const statusRef = useRef<'active' | 'idle'>('active');
 
   useEffect(() => {
     if (!ready || !user) return undefined;
     let stopped = false;
+    lastActivityRef.current = Date.now();
 
     const ensureStarted = async () => {
       if (startedRef.current || stopped) return;

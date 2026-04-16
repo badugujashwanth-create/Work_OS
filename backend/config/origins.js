@@ -26,9 +26,20 @@ const matchesPattern = (origin, pattern) => {
 const isLocalOrigin = (origin) =>
   origin?.startsWith('http://localhost') || origin?.startsWith('http://127.0.0.1');
 
+const deriveNetlifyPreviewOrigins = (origin) => {
+  if (!origin) return [];
+  const normalized = normalizeOrigin(origin);
+  const match = normalized.match(/^https?:\/\/([^.]+)\.netlify\.app$/);
+  if (!match) return [];
+  const site = match[1];
+  if (!site || site.includes('--')) return [];
+  return [`https://*--${site}.netlify.app`];
+};
+
 export const getAllowedOrigins = () => {
   const envOrigins = parseAllowedOrigins(process.env.CLIENT_URL);
-  return Array.from(new Set([...envOrigins, ...DEFAULT_ORIGINS]));
+  const derivedOrigins = envOrigins.flatMap(deriveNetlifyPreviewOrigins);
+  return Array.from(new Set([...envOrigins, ...derivedOrigins, ...DEFAULT_ORIGINS]));
 };
 
 export const isOriginAllowed = (origin, allowedOrigins) => {

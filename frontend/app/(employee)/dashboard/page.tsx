@@ -87,7 +87,7 @@ export default function EmployeeDashboard() {
     []
   );
 
-const tabContent = useMemo(() => {
+  const tabContent = useMemo(() => {
     switch (activeTab) {
       case 'tasks':
         return <TaskBoard tasks={tasks} />;
@@ -142,7 +142,7 @@ const tabContent = useMemo(() => {
           </div>
         );
     }
-  }, [activeTab, browserUrl, mailUrl, session, status, tasks]);
+  }, [activeTab, browserUrl, mailUrl, session, tasks, workTotals]);
 
   const featuredTasks = tasks.slice(0, 3);
 
