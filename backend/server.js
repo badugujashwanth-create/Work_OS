@@ -38,6 +38,7 @@ import usageRoutes from './routes/usageRoutes.js';
 import teamRoutes from './routes/teamRoutes.js';
 import teamChatRoutes from './routes/teamChatRoutes.js';
 import leaveRoutes from './routes/leaveRoutes.js';
+import workPermissionRoutes from './routes/workPermissionRoutes.js';
 import { initSocket } from './socket.js';
 
 dotenv.config();
@@ -105,6 +106,7 @@ app.use('/api/usage', usageRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/chat', teamChatRoutes);
 app.use('/api/leave', leaveRoutes);
+app.use('/api/workpermission', workPermissionRoutes);
 
 app.get('/', (req, res) => {
   res.json({ status: 'ok', service: 'workhub-backend' });
