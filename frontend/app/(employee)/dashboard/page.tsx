@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import StatusBadge from '@/components/StatusBadge';
 import TaskBoard from '@/components/TaskBoard';
+import PermissionRequestModal from '@/components/PermissionRequestModal';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useTaskStore } from '@/store/useTaskStore';
 import { useWorkStore } from '@/store/useWorkStore';
 import { notificationService } from '@/services/notificationService';
 import { statusService } from '@/services/statusService';
 import { workService } from '@/services/workService';
+import { getCachedPermissionStatus } from '@/lib/permissionManager';
 import { ActivityStatus, IEmployeeStatusRecord, INotification, IWorkdayTotals } from '@/types';
 
 const TAB_DEFINITIONS = [
@@ -38,10 +40,18 @@ export default function EmployeeDashboard() {
   const [notifications, setNotifications] = useState<INotification[]>([]);
   const [workTotals, setWorkTotals] = useState<IWorkdayTotals | null>(null);
   const [activeTab, setActiveTab] = useState<(typeof TAB_DEFINITIONS)[number]['id']>('work');
+  const [showPermissionModal, setShowPermissionModal] = useState(false);
 
   useEffect(() => {
     if (!user) return;
     fetch(user._id);
+    
+    // Check if permissions have been requested
+    const cached = getCachedPermissionStatus();
+    // Show modal if no permissions have been cached yet
+    if (!cached) {
+      setShowPermissionModal(true);
+    }
   }, [user, fetch]);
 
   useEffect(() => {
@@ -148,6 +158,11 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="space-y-6">
+      <PermissionRequestModal
+        isOpen={showPermissionModal}
+        onClose={() => setShowPermissionModal(false)}
+        employeeName={user?.name || 'Employee'}
+      />
       <section className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
         <div className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
           <div className="flex items-center justify-between">
